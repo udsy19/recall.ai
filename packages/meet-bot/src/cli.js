@@ -36,6 +36,7 @@ const bot = new MeetingBot({
   botName: args.name,
   adapter: meetAdapter,
   artifactsDir: path.resolve(args.out, `recording_${Date.now()}`),
+  profileDir: path.resolve(args.out, '.chrome-profile'),
   headless: !args.headful,
   soniox: process.env.SONIOX_API_KEY ? { apiKey: process.env.SONIOX_API_KEY } : undefined,
   onStatus: (s) => console.log(`[status] ${s}`),
@@ -58,5 +59,10 @@ async function shutdown() {
 process.on('SIGINT', shutdown);
 setTimeout(shutdown, Number(args['max-minutes']) * 60000);
 
-await bot.run();
-console.log('bot is in the call — Ctrl-C to leave and finalize');
+try {
+  await bot.run();
+  console.log('bot is in the call — Ctrl-C to leave and finalize');
+} catch (err) {
+  console.error(`join failed: ${err.message}`);
+  process.exit(1);
+}

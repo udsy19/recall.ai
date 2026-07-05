@@ -29,10 +29,24 @@ export const meetAdapter = {
 
   /** Join as guest. Page must already be at the meeting URL. Returns 'in_call' | 'waiting_room' | 'denied'. */
   async join(page, { botName, waitingRoomTimeoutMs = 20 * 60 * 1000 }) {
-    const nameInput = page.locator('input[type="text"]').first();
-    await nameInput.waitFor({ timeout: 30000 });
-    await nameInput.fill(botName);
+    // Dismiss first-visit interstitials that block the pre-join form.
+    for (const label of [/got it/i, /dismiss/i]) {
+      await page.getByRole('button', { name: label }).first().click({ timeout: 2000 }).catch(() => {});
+    }
 
+    // Google shows a hard-block page (rate-limit / locked meeting) instead of
+    // the pre-join form; detect it before waiting on the name input.
+    const blocked = page.getByText(/you can't join this video call|meeting hasn't started|check your meeting code/i);
+    // Meet renders duplicate "Your name" inputs; only one is visible.
+    const nameInput = page.locator('input[aria-label="Your name"]:visible, input[placeholder="Your name"]:visible').first();
+
+    const preJoin = await Promise.race([
+      nameInput.waitFor({ timeout: 30000 }).then(() => 'form'),
+      blocked.waitFor({ timeout: 30000 }).then(() => 'blocked'),
+    ]).catch(() => 'timeout');
+    if (preJoin !== 'form') return 'denied';
+
+    await nameInput.fill(botName);
     const joinBtn = page.getByRole('button', { name: /ask to join|join now|join anyway/i }).first();
     await joinBtn.click();
 

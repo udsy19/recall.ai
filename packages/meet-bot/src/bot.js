@@ -54,17 +54,29 @@ export class MeetingBot {
 
     let soniox = null;
     if (this.opts.soniox?.apiKey) {
+      // Connects lazily on the first PCM chunk — Soniox 408s idle sessions,
+      // and no audio flows while the bot waits for meeting admission.
       soniox = new SonioxRealtime({
         ...this.opts.soniox,
         diarization: true,
         contextTerms: this.opts.contextTerms,
+        onError: (err) => console.error(`[soniox] ${err.message} — recording continues without STT`),
       });
-      await soniox.connect();
     }
     this.soniox = soniox;
 
-    this.browser = await chromium.launch({ headless: this.opts.headless, args: CHROME_ARGS });
-    const context = await this.browser.newContext({ permissions: ['microphone', 'camera'] });
+    // A persistent profile keeps cookies across runs — repeated cookie-less
+    // anonymous joins trip Google's anti-abuse block page.
+    let context;
+    if (this.opts.profileDir) {
+      context = await chromium.launchPersistentContext(this.opts.profileDir, {
+        headless: this.opts.headless, args: CHROME_ARGS, permissions: ['microphone', 'camera'],
+      });
+      this.browser = context;
+    } else {
+      this.browser = await chromium.launch({ headless: this.opts.headless, args: CHROME_ARGS });
+      context = await this.browser.newContext({ permissions: ['microphone', 'camera'] });
+    }
 
     await context.exposeBinding('__botPcmChunk', (_src, b64) => {
       const pcm = Buffer.from(b64, 'base64');

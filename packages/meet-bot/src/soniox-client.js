@@ -19,10 +19,18 @@ export class SonioxRealtime {
     this.finalTokens = [];
     this.ws = null;
     this._finished = null;
+    this.dead = false;
+    this._buffer = [];        // PCM queued before the socket opens
+    this._bufferBytes = 0;
+    this._connecting = null;
   }
 
+  /** Idempotent; call as late as possible — Soniox 408s if audio doesn't
+   *  arrive shortly after config, so don't connect while e.g. waiting for
+   *  meeting admission. sendPcm() buffers until the socket opens. */
   connect() {
-    return new Promise((resolve, reject) => {
+    if (this._connecting) return this._connecting;
+    this._connecting = new Promise((resolve, reject) => {
       const ws = new WebSocket(this.opts.url ?? SONIOX_WS_URL);
       this.ws = ws;
       ws.once('open', () => {
@@ -37,19 +45,29 @@ export class SonioxRealtime {
           language_hints: this.opts.languageHints ?? ['en'],
           ...(this.opts.contextTerms?.length ? { context: { terms: this.opts.contextTerms } } : {}),
         }));
+        for (const pcm of this._buffer) ws.send(pcm);
+        this._buffer = [];
+        this._bufferBytes = 0;
         resolve();
       });
-      ws.once('error', reject);
+      ws.once('error', (err) => { this._fail(err); reject(err); });
       ws.on('message', (buf) => this._onMessage(buf));
     });
+    return this._connecting;
+  }
+
+  _fail(err) {
+    this.dead = true;
+    this._buffer = [];
+    this.opts.onError?.(err);
+    this._finished?.resolve(); // finish() returns whatever finals we have
   }
 
   _onMessage(buf) {
     let msg;
     try { msg = JSON.parse(buf.toString()); } catch { return; }
     if (msg.error_code) {
-      const err = new Error(`Soniox ${msg.error_code}: ${msg.error_message}`);
-      if (this._finished) this._finished.reject(err); else throw err;
+      this._fail(new Error(`Soniox ${msg.error_code}: ${msg.error_message}`));
       return;
     }
     const finals = [], nonFinals = [];
@@ -70,14 +88,24 @@ export class SonioxRealtime {
     if (msg.finished && this._finished) this._finished.resolve();
   }
 
-  /** @param {Buffer} pcm s16le mono at configured sample rate */
+  /** @param {Buffer} pcm s16le mono at configured sample rate.
+   *  Triggers connect() on first audio; buffers (up to 2 min) until open. */
   sendPcm(pcm) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(pcm);
+    if (this.dead) return;
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(pcm);
+      return;
+    }
+    this.connect().catch(() => {});
+    if (this._bufferBytes < 2 * 60 * 16000 * 2) {
+      this._buffer.push(pcm);
+      this._bufferBytes += pcm.length;
+    }
   }
 
   /** Signal end-of-audio, wait for remaining tokens, return all finals. */
   async finish() {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return this.finalTokens;
+    if (this.dead || !this.ws || this.ws.readyState !== WebSocket.OPEN) return this.finalTokens;
     const done = new Promise((resolve, reject) => { this._finished = { resolve, reject }; });
     this.ws.send('');
     const timeout = new Promise((resolve) => setTimeout(resolve, 15000));
