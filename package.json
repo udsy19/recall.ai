@@ -1,0 +1,16 @@
+{
+  "name": "recall-clone",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Open Recall.ai-style platform: meeting bots, desktop recording, calendar sync, unified conversation-data API",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
