@@ -54,6 +54,8 @@ export class SonioxRealtime {
     }
     const finals = [], nonFinals = [];
     for (const t of msg.tokens ?? []) {
+      if (t.text === '<end>' || t.text === '<fin>') continue; // endpoint/finalize control tokens, not words
+
       const tok = {
         text: t.text,
         startMs: t.start_ms,
