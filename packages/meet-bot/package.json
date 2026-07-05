@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Google Meet browser bot: Playwright joiner, WebRTC audio capture, participant-event scraper, Soniox realtime transcription",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "@recall-clone/transcript-engine": "*",
