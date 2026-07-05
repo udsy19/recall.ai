@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Weekly Sync — Fake Meeting Harness</title></head>
+<body>
+  <ul id="roster">
+    <li data-participant-id="p1" class="tile">Alice Chen (Host)</li>
+    <li data-participant-id="p2" class="tile">Bob Marley</li>
+  </ul>
+  <button id="join">Join now</button>
+  <script>
+    // Simulates a meeting platform: remote participants' speech arrives over a
+    // real RTCPeerConnection (so the bot's injected hook captures it exactly as
+    // it would on Meet), and speaking indicators toggle DOM state in sync.
+    window.startMeeting = async (schedule) => {
+      const pc1 = new RTCPeerConnection();
+      const pc2 = new RTCPeerConnection(); // receiving side -> bot hook sees its tracks
+      pc1.onicecandidate = (e) => e.candidate && pc2.addIceCandidate(e.candidate);
+      pc2.onicecandidate = (e) => e.candidate && pc1.addIceCandidate(e.candidate);
+
+      const ctx = new AudioContext({ sampleRate: 48000 });
+      await ctx.resume();
+      const dest = ctx.createMediaStreamDestination();
+      dest.stream.getTracks().forEach((t) => pc1.addTrack(t, dest.stream));
+
+      const offer = await pc1.createOffer();
+      await pc1.setLocalDescription(offer);
+      await pc2.setRemoteDescription(offer);
+      const answer = await pc2.createAnswer();
+      await pc2.setLocalDescription(answer);
+      await pc1.setRemoteDescription(answer);
+      await new Promise((r) => {
+        if (pc2.connectionState === 'connected') return r();
+        pc2.onconnectionstatechange = () => pc2.connectionState === 'connected' && r();
+      });
+      await new Promise((r) => setTimeout(r, 400)); // let the bot attach its tap
+
+      // Decode everything first so scheduling is sample-accurate.
+      for (const item of schedule) {
+        const buf = await fetch(item.wavUrl).then((r) => r.arrayBuffer());
+        item.audio = await ctx.decodeAudioData(buf);
+        item.durationMs = item.audio.duration * 1000;
+      }
+      // Resolve relative starts: {afterPid, gapMs} -> after that speaker ends.
+      const byPid = Object.fromEntries(schedule.map((s) => [s.pid, s]));
+      for (const item of schedule) {
+        if (item.afterPid != null) {
+          const prev = byPid[item.afterPid];
+          item.startMs = prev.startMs + prev.durationMs + (item.gapMs ?? 800);
+        }
+      }
+      const t0 = ctx.currentTime + 0.2;
+      for (const item of schedule) {
+        const src = ctx.createBufferSource();
+        src.buffer = item.audio;
+        src.connect(dest);
+        const when = t0 + item.startMs / 1000;
+        src.start(when);
+        const tile = document.querySelector(`[data-participant-id="${item.pid}"]`);
+        const delayMs = (when - ctx.currentTime) * 1000;
+        setTimeout(() => tile.classList.add('speaking'), delayMs);
+        setTimeout(() => tile.classList.remove('speaking'), delayMs + item.durationMs);
+      }
+      return schedule.map(({ pid, startMs, durationMs }) => ({ pid, startMs, durationMs }));
+    };
+  </script>
+</body>
+</html>

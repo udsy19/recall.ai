@@ -1,0 +1,14 @@
+{
+  "name": "@recall-clone/meet-bot",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Google Meet browser bot: Playwright joiner, WebRTC audio capture, participant-event scraper, Soniox realtime transcription",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@recall-clone/transcript-engine": "*",
+    "playwright": "^1.54.0",
+    "ws": "^8.18.0"
+  }
+}

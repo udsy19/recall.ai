@@ -3,3 +3,4 @@ node_modules/
 *.log
 artifacts/
 .env
+packages/meet-bot/test/harness/generated/
