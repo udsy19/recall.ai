@@ -109,6 +109,11 @@ export class MeetingBot {
 
     const outcome = await adapter.join(page, { botName: this.opts.botName });
     if (outcome !== 'in_call') {
+      // Capture what the bot actually saw — join failures are usually an
+      // unexpected page (block page, policy dialog, changed selectors).
+      await page.screenshot({ path: path.join(this.opts.artifactsDir, 'join-failure.png') }).catch(() => {});
+      const text = await page.evaluate(() => document.body.innerText.slice(0, 2000)).catch(() => '');
+      fs.writeFileSync(path.join(this.opts.artifactsDir, 'join-failure.txt'), `${page.url()}\n\n${text}`);
       this._setStatus('fatal');
       await this.browser.close();
       throw new Error(`join failed: ${outcome}`);

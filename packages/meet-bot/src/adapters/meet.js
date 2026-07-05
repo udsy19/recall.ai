@@ -37,17 +37,19 @@ export const meetAdapter = {
     // Google shows a hard-block page (rate-limit / locked meeting) instead of
     // the pre-join form; detect it before waiting on the name input.
     const blocked = page.getByText(/you can't join this video call|meeting hasn't started|check your meeting code/i);
-    // Meet renders duplicate "Your name" inputs; only one is visible.
+    // Anonymous flow: a visible "Your name" input (Meet renders hidden
+    // duplicates). Signed-in flow: the join button appears with no name form.
     const nameInput = page.locator('input[aria-label="Your name"]:visible, input[placeholder="Your name"]:visible').first();
+    const joinBtn = page.getByRole('button', { name: /ask to join|join now|join anyway/i }).first();
 
     const preJoin = await Promise.race([
       nameInput.waitFor({ timeout: 30000 }).then(() => 'form'),
+      joinBtn.waitFor({ timeout: 30000 }).then(() => 'signed_in'),
       blocked.waitFor({ timeout: 30000 }).then(() => 'blocked'),
     ]).catch(() => 'timeout');
-    if (preJoin !== 'form') return 'denied';
+    if (preJoin === 'blocked' || preJoin === 'timeout') return 'denied';
 
-    await nameInput.fill(botName);
-    const joinBtn = page.getByRole('button', { name: /ask to join|join now|join anyway/i }).first();
+    if (preJoin === 'form') await nameInput.fill(botName);
     await joinBtn.click();
 
     const admitted = page.getByRole('button', { name: /leave call/i });

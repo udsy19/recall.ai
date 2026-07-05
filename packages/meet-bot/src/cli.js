@@ -4,6 +4,10 @@
  *   SONIOX_API_KEY=... node src/cli.js --url https://meet.google.com/xxx-xxxx-xxx \
  *     [--name "My Notetaker"] [--out ./artifacts] [--headful] [--max-minutes 60]
  * Stop with Ctrl-C (graceful: leaves the call, flushes STT, writes artifacts).
+ *
+ * Personal-Gmail-hosted meetings reject anonymous guests. Sign the bot in
+ * ONCE first (same --out dir): `node src/login.js --out <dir>`, then the join
+ * runs as a signed-in user. Workspace-hosted meetings work anonymously.
  */
 import path from 'node:path';
 import { parseArgs } from 'node:util';
