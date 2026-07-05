@@ -16,14 +16,22 @@ An open Recall.ai-style conversation-data platform: meeting bots, botless deskto
 ## Packages
 
 - `packages/transcript-engine` — ✅ who-said-what-when merge engine (tokens × speaker events × roster), tested
-- `packages/meet-bot` — Google Meet browser bot (Playwright): join, WebRTC audio capture, participant events
-- `packages/server` — Recall-compatible REST API + webhooks (WIP)
-- `packages/calendar-sync`, `packages/desktop-sdk`, `packages/mobile-sdk` — per design docs (WIP)
+- `packages/meet-bot` — ✅ Google Meet browser bot (Playwright): join, WebRTC audio capture, participant events, Soniox realtime; e2e-tested against a fake-meeting harness with real STT
+- `packages/server` — ✅ Recall-compatible REST API (`POST /api/v1/bot`, artifacts, Svix-signed webhooks), integration-tested
+- `packages/calendar-sync` — ✅ meeting-link parser (Zoom/Meet/Teams/Webex canonical dedup keys); sync engine per docs/03 (WIP)
+- `packages/desktop-sdk`, `packages/mobile-sdk` — per design docs (WIP)
 
 ## Develop
 
 ```bash
-npm install
-npm test                      # all workspace tests
-SONIOX_API_KEY=... node packages/meet-bot/src/cli.js --url https://meet.google.com/xxx-xxxx-xxx
+npm install && npx playwright install chromium
+npm test                      # all workspace tests (uses macOS `say` + ffmpeg for the e2e harness)
+
+# run the API server (.env: SONIOX_API_KEY, API_TOKEN, WEBHOOK_URL)
+node packages/server/src/index.js
+curl -X POST localhost:3000/api/v1/bot -H 'Authorization: Token dev' \
+  -d '{"meeting_url": "https://meet.google.com/xxx-xxxx-xxx", "bot_name": "My Notetaker"}'
+
+# or drive a bot directly from the CLI
+SONIOX_API_KEY=... node packages/meet-bot/src/cli.js --url https://meet.google.com/xxx-xxxx-xxx --headful
 ```

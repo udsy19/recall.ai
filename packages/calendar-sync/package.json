@@ -1,0 +1,10 @@
+{
+  "name": "@recall-clone/calendar-sync",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "description": "Calendar integration: meeting-link parsing, sync, auto-record rules (see docs/03)"
+}
